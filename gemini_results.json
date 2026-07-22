@@ -1,0 +1,104 @@
+[
+  {
+    "position": 1,
+    "text_raw": "من و سلویٰ کی بھوک\nنمرہ احمد\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 2,
+    "text_raw": "جنتی زیور\nشیخ الحدیث علامہ عبدالمصطفیٰ اعظمی",
+    "script": "urdu_nastaliq",
+    "confidence_note": "mostly clear"
+  },
+  {
+    "position": 3,
+    "text_raw": null,
+    "script": "unknown",
+    "confidence_note": "no visible text"
+  },
+  {
+    "position": 4,
+    "text_raw": "میں انمول\nنمرہ احمد\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 5,
+    "text_raw": "جنت کے پتے\nنمرہ احمد\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "mostly clear"
+  },
+  {
+    "position": 6,
+    "text_raw": "مصحف\nنمرہ احمد\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 7,
+    "text_raw": "راہِ نور\nسمیرا حمید\nالف",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 8,
+    "text_raw": "آبلہ پا\nسمیرا حمید\nالف",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 9,
+    "text_raw": "طوافِ عشق\nTawaaf-e-Ishq\nسمیرا حمید\nالف",
+    "script": "mixed",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 10,
+    "text_raw": "حاصل\nعمیرہ احمد\nالف",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 11,
+    "text_raw": "الف\nعمیرہ احمد\nالف",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 12,
+    "text_raw": "پیرِ کامل صلی اللہ علیہ وسلم\nعمیرہ احمد\nالف",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 13,
+    "text_raw": "جب زندگی شروع ہوگی\nابویحییٰ\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 14,
+    "text_raw": "قسم اس وقت کی\nابویحییٰ\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 15,
+    "text_raw": "خدا بول رہا ہے\nابویحییٰ\nانذار",
+    "script": "urdu_nastaliq",
+    "confidence_note": "mostly clear"
+  },
+  {
+    "position": 16,
+    "text_raw": "گھومے ہوؤں کی جستجو\nقاسم حسن رضا\nمنشورات",
+    "script": "urdu_nastaliq",
+    "confidence_note": "fully clear"
+  },
+  {
+    "position": 17,
+    "text_raw": "اقوامِ متحدہ یا ہمارا سرپرست",
+    "script": "urdu_nastaliq",
+    "confidence_note": "partially blurry/obscured"
+  }
+]
