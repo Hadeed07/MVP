@@ -3,7 +3,7 @@ from paddleocr import PaddleOCR
 
 
 #Initialize YOLO
-model = YOLO("models/best.pt")
+model = YOLO("models/best_obb.pt")
 
 # Initialize PaddleOCR
 paddle_ocr = PaddleOCR(
