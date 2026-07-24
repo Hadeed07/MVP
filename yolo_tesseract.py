@@ -25,7 +25,7 @@ from ultralytics import YOLO
 # and set this to your actual install path:
 # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-IMAGE_PATH = "urdu.jpg"          # path to your test bookshelf photo
+IMAGE_PATH = "urdu.jpg"          #   path to your test bookshelf photo
 YOLO_MODEL = "yolov8n.pt"             # generic pretrained model (auto-downloads on first run)
                                        # NOTE: this is NOT trained on book spines specifically —
                                        # it's just for structural testing until you have a
