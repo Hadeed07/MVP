@@ -1,4 +1,4 @@
-from script.models import model, paddle_ocr
+from services.models import model, paddle_ocr
 import numpy as np
 import cv2
 
@@ -7,6 +7,8 @@ class SpinePipeline:
         self.model = model
         self.paddle_ocr = paddle_ocr
         self.score_threshold = 0.4
+        
+        self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
 
     @staticmethod
@@ -38,7 +40,7 @@ class SpinePipeline:
 
     def crop_spines(self, image, obb_corners):
         crops = []
-
+        
         for i, corners in enumerate(obb_corners):
 
             # -------------------------------
@@ -86,8 +88,7 @@ class SpinePipeline:
 
 
 
-    def preprocess(self, crop, scale=3):
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    def preprocess(self, crop):
         target_height = 256
         max_width = 1000
         max_scale = 3
@@ -96,7 +97,7 @@ class SpinePipeline:
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
 
         # CLAHE
-        gray = clahe.apply(gray)
+        gray = self.clahe.apply(gray)
 
         # Resizing
         h, w = gray.shape[:2]
@@ -147,9 +148,17 @@ class SpinePipeline:
         return results
 
 
+    def annotate(self, image, obb_corners):
+        annotated = image.copy()
+        for corners in obb_corners:
+            pts = corners.astype(int).reshape(-1, 1, 2)
+            cv2.polylines(annotated, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+        return annotated
+
+
     def results(self, image):
         bboxes = self.detect_spines(image)
         crops = self.crop_spines(image, bboxes)
         results = self.run_ocr(crops)
 
-        return results
+        return results, bboxes
