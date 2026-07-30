@@ -1,5 +1,6 @@
 from services.models import model, paddle_ocr
 import numpy as np
+from typing import List, Tuple
 import cv2
 
 class SpinePipeline:
@@ -12,7 +13,13 @@ class SpinePipeline:
 
 
     @staticmethod
-    def order_points(pts):
+    def normalize(corners: np.ndarray, image: np.ndarray) -> list:
+        h, w = image.shape[:2]
+        return [[float(x / w), float(y / h)] for x, y in corners]
+
+
+    @staticmethod
+    def order_points(pts: np.ndarray) -> np.ndarray:
         """
         Order points as:
         top-left, top-right, bottom-right, bottom-left
@@ -32,16 +39,16 @@ class SpinePipeline:
         return rect
 
     
-    def detect_spines(self, image):
+    def detect_spines(self, image: np.ndarray) -> np.ndarray:
         results = self.model.predict(image, conf=0.5, verbose=False, iou=0.4)
         obb_corners = results[0].obb.xyxyxyxy.cpu().numpy()
         return obb_corners
 
 
-    def crop_spines(self, image, obb_corners):
-        crops = []
+    def crop_spines(self, image: np.ndarray, obb_corners: np.ndarray) -> List[Tuple[int, np.ndarray]]:
+        crops: List[Tuple[int, np.ndarray]] = []
         
-        for i, corners in enumerate(obb_corners):
+        for idx, corners in enumerate(obb_corners):
 
             # -------------------------------
             # Reorder the corners correctly
@@ -82,13 +89,13 @@ class SpinePipeline:
     
             crop = cv2.warpPerspective(image, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
-            crops.append(crop)
+            crops.append((idx, crop))
 
         return crops
 
 
 
-    def preprocess(self, crop):
+    def preprocess(self, crop: np.ndarray) -> np.ndarray:
         target_height = 256
         max_width = 1000
         max_scale = 3
@@ -126,10 +133,10 @@ class SpinePipeline:
 
     
 
-    def run_ocr(self, crops):
+    def run_ocr(self, crops: List[Tuple[int, np.ndarray]]) -> List[Tuple[int, dict]]:
         results = []
 
-        for crop in crops:
+        for idx, crop in crops:
             pre_processed = self.preprocess(crop)
             ocr_output = self.paddle_ocr.predict(pre_processed)
 
@@ -143,12 +150,12 @@ class SpinePipeline:
                         filtered_scores.append(score)
 
                 if filtered_texts:
-                    results.append({'text': filtered_texts,'scores': filtered_scores})
+                    results.append((idx, {'text': filtered_texts,'scores': filtered_scores}))
 
         return results
 
 
-    def annotate(self, image, obb_corners):
+    def annotate(self, image: np.ndarray, obb_corners: np.ndarray) -> np.ndarray:
         annotated = image.copy()
         for corners in obb_corners:
             pts = corners.astype(int).reshape(-1, 1, 2)
@@ -156,7 +163,7 @@ class SpinePipeline:
         return annotated
 
 
-    def results(self, image):
+    def results(self, image: np.ndarray) -> Tuple[List[Tuple[int, dict]], np.ndarray]:
         bboxes = self.detect_spines(image)
         crops = self.crop_spines(image, bboxes)
         results = self.run_ocr(crops)

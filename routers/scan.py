@@ -22,13 +22,14 @@ def scan(file: UploadFile):
     ocr_results, obb_corners = pl.results(img)
 
     spines = []
-    for book in ocr_results:
+    for idx, book in ocr_results:
         text = clean_ocr(book)
         if text:
-            spines.append(SpineResult(text=text))
+            corners = pl.normalize(pl.order_points(obb_corners[idx]), img)
+            spines.append(SpineResult(id=str(idx), text=text, corners=corners))
 
-    annotated = pl.annotate(img, obb_corners)
-    success, buffer = cv2.imencode('.jpg', annotated)
+
+    success, buffer = cv2.imencode('.jpg', img)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to encode annotated image")
 

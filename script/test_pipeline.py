@@ -8,6 +8,7 @@ from rapidfuzz import process, fuzz
 
 class SpinePipeline:
     def __init__(self, catalog_path=r"D:\Documents\python codes\Book Recommender\MVP\Dataset\books_cleaned.csv"):
+        # catalog_path="Dataset/books_cleaned.csv"
         self.model = model
         self.paddle_ocr = paddle_ocr
         self.score_threshold = 0.8
