@@ -1,0 +1,105 @@
+.home{
+
+    height:100%;
+
+    display:flex;
+
+    flex-direction:column;
+
+    justify-content:center;
+
+    padding:32px;
+
+}
+
+.hero{
+
+    text-align:center;
+
+}
+
+.logo{
+
+    font-size:72px;
+
+    margin-bottom:20px;
+
+}
+
+.hero h1{
+
+    font-size:42px;
+
+    font-weight:700;
+
+    color:var(--walnut);
+
+}
+
+.tagline{
+
+    margin-top:8px;
+
+    color:#666;
+
+    font-size:18px;
+
+}
+
+.description{
+
+    margin-top:18px;
+
+    line-height:1.7;
+
+    color:#555;
+
+}
+
+.actions{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:16px;
+
+    margin-top:60px;
+
+}
+
+.primary-btn{
+
+    height:56px;
+
+    border:none;
+
+    border-radius:16px;
+
+    background:var(--forest-green);
+
+    color:white;
+
+    font-size:16px;
+
+    cursor:pointer;
+
+}
+
+.secondary-btn{
+
+    height:56px;
+
+    border-radius:16px;
+
+    border:2px solid var(--forest-green);
+
+    background:white;
+
+    color:var(--forest-green);
+
+    font-size:16px;
+
+    cursor:pointer;
+
+}

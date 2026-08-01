@@ -9,24 +9,42 @@ from store import save_image, get_image
 
 router = APIRouter()
 
+# Initialize the pipeline once when the application starts.
 pl = SpinePipeline()
+
 
 @router.post("/scan", response_model=ScanResponse)
 def scan(file: UploadFile):
-    contents = file.file.read()
+    """
+    Upload a bookshelf image and return detected book spines
+    together with a scan ID for later image retrieval.
+    """
+    
+    try:
+        contents = file.file.read()
+    finally:
+        file.file.close()
+
     npimg = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
     if img is None:
         raise HTTPException(status_code=400, detail="Could not decode image")
 
-    ocr_results, obb_corners = pl.results(img)
+    matches, obb_corners = pl.results(img)
+    print("SCAN.PY UPDATED")
+
+    print("OCR RESULTS TYPE:", type(matches))
+    print("FIRST ITEM:", matches[0] if matches else "EMPTY")
 
     spines = []
-    for idx, book in ocr_results:
-        text = clean_ocr(book)
+    for book in matches:
+        idx = book["spine_idx"]
+        text = book["ocr_text"]
+
         if text:
-            corners = pl.normalize(pl.order_points(obb_corners[idx]), img)
-            spines.append(SpineResult(id=str(idx), text=text, corners=corners))
+            corners = pl.normalize(pl.order_points(obb_corners[idx]),img)
+            spines.append(SpineResult(id=str(idx),text=text,corners=corners))
 
 
     success, buffer = cv2.imencode('.jpg', img)
@@ -40,6 +58,10 @@ def scan(file: UploadFile):
 
 @router.get("/scan/{scan_id}/image")
 def get_scan_image(scan_id: str):
+    """
+    Retrieve the original uploaded image using its scan ID.
+    """
+    
     image_bytes = get_image(scan_id)
     if image_bytes is None:
         raise HTTPException(status_code=404, detail="scan_id not found")
