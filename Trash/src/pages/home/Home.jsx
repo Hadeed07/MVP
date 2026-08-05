@@ -11,11 +11,11 @@ export default function Home() {
                 <h1>Owly</h1>
 
                 <p className="tagline">
-                    AI Bookshelf Scanner
+                    Your Personal Bookshelf Companion
                 </p>
 
                 <p className="description">
-                    Discover every book on your shelf in seconds.
+                    Scan your bookshelf to discover, organize and rediscover your books.
                 </p>
 
             </div>
