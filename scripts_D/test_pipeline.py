@@ -7,7 +7,7 @@ from rapidfuzz import process, fuzz
 
 
 class SpinePipeline:
-    def __init__(self, catalog_path=r"..\Dataset\books_cleaned.csv",chroma_path=r"..\chroma_db", collection_name="books"):
+    def __init__(self, catalog_path=r"..\MVP\Dataset\books_cleaned.csv",chroma_path=r"..\MVP\chroma_db", collection_name="books"):
         self.model = model
         self.paddle_ocr = paddle_ocr
         self.score_threshold = 0.8
