@@ -20,6 +20,8 @@ export async function scanBookshelf(
   } as any);
 
   try {
+    console.log('📤 Uploading image...');
+
     const response = await apiClient.post<ScanResponse>(
       API_ENDPOINTS.SCAN,
       formData,
@@ -31,13 +33,24 @@ export async function scanBookshelf(
       }
     );
 
-    if (!Array.isArray(response.data)) {
+    console.log('✅ Response received');
+    console.log('Status:', response.status);
+    console.log('Data:', response.data);
+
+    if (!response.data || !Array.isArray(response.data.spines)) {
       throw new Error('Malformed server response.');
     }
 
     return response.data;
   } catch (error) {
+    console.log('❌ FULL ERROR:', error);
+
     if (axios.isAxiosError(error)) {
+      console.log('Axios Code:', error.code);
+      console.log('Axios Message:', error.message);
+      console.log('Axios Status:', error.response?.status);
+      console.log('Axios Response:', error.response?.data);
+
       throw new Error(
         error.response?.data?.detail ??
           error.message ??

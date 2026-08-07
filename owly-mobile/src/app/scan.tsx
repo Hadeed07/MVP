@@ -45,15 +45,26 @@ export default function ScanScreen() {
     }
 
     try {
-      const books = await scan(imageUri);
+      console.log("1. Starting scan");
+
+      const result = await scan(imageUri);
+
+      console.log("2. Scan finished");
+      console.log(result);
+
+      console.log("3. Navigating");
 
       router.replace({
         pathname: "/results",
         params: {
-          books: JSON.stringify(books),
+          scanResult: JSON.stringify(result),
         },
       });
+
+      console.log("4. Navigation complete");
     } catch (error) {
+      console.log("HANDLE SCAN ERROR:", error);
+
       Alert.alert(
         "Scan Failed",
         error instanceof Error ? error.message : "Something went wrong.",

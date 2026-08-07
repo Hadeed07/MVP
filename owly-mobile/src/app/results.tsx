@@ -3,39 +3,45 @@ import { FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
 import BookCard from "@/components/books/BookCard";
-import { DetectedBook } from "@/services/api/types";
-import { Colors, Spacing, Typography } from '@/theme';
+import { ScanResponse, SpineResult } from "@/services/api/types";
+import { Colors } from "@/theme";
 
 export default function ResultsScreen() {
-  const { books } = useLocalSearchParams<{ books?: string }>();
+  const { scanResult } = useLocalSearchParams<{
+    scanResult?: string;
+  }>();
 
-  const detectedBooks = useMemo<DetectedBook[]>(() => {
-    if (!books) {
-      return [];
+  const result = useMemo<ScanResponse | null>(() => {
+    if (!scanResult) {
+      return null;
     }
 
     try {
-      return JSON.parse(books);
+      return JSON.parse(scanResult);
     } catch {
-      return [];
+      return null;
     }
-  }, [books]);
+  }, [scanResult]);
+
+  const spines: SpineResult[] = result?.spines ?? [];
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.heading}>Detected Books</Text>
+      <Text style={styles.heading}>Detected Spines</Text>
 
-      <Text style={styles.subHeading}>{detectedBooks.length} books found</Text>
+      <Text style={styles.subHeading}>
+        {spines.length} {spines.length === 1 ? "spine" : "spines"} found
+      </Text>
 
       <FlatList
-        data={detectedBooks}
-        keyExtractor={(item) => item.isbn13 || item.spine_idx.toString()}
+        data={spines}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => <BookCard book={item} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No books detected.</Text>
+            <Text style={styles.emptyText}>No spines detected.</Text>
           </View>
         }
       />

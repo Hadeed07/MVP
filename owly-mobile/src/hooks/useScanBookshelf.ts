@@ -4,7 +4,7 @@ import { scanBookshelf } from '@/services/api/scanService';
 import { ScanResponse } from '@/services/api/types';
 
 interface UseScanBookshelfResult {
-  books: ScanResponse;
+  scanResult: ScanResponse | null;
   loading: boolean;
   error: string | null;
   scan: (imageUri: string) => Promise<ScanResponse>;
@@ -13,7 +13,7 @@ interface UseScanBookshelfResult {
 }
 
 export function useScanBookshelf(): UseScanBookshelfResult {
-  const [books, setBooks] = useState<ScanResponse>([]);
+  const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +26,7 @@ export function useScanBookshelf(): UseScanBookshelfResult {
   }, []);
 
   const reset = useCallback(() => {
-    setBooks([]);
+    setScanResult(null);
     setError(null);
     setLoading(false);
   }, []);
@@ -45,7 +45,7 @@ export function useScanBookshelf(): UseScanBookshelfResult {
         signal: controller.signal,
       });
 
-      setBooks(result);
+      setScanResult(result);
 
       return result;
     } catch (err) {
@@ -71,7 +71,7 @@ export function useScanBookshelf(): UseScanBookshelfResult {
   }, []);
 
   return {
-    books,
+    scanResult,
     loading,
     error,
     scan,

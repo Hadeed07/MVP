@@ -1,28 +1,24 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { DetectedBook } from "@/services/api/types";
+import { SpineResult } from "@/services/api/types";
 import { Colors, Spacing, Typography, Radius, Shadows } from "@/theme";
 
 interface BookCardProps {
-  book: DetectedBook;
+  book: SpineResult;
 }
 
 export default function BookCard({ book }: BookCardProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{book.matched_title || "Unknown Title"}</Text>
+      <Text style={styles.title}>Spine #{book.id}</Text>
 
-      <Text style={styles.author}>
-        {book.matched_authors || "Unknown Author"}
-      </Text>
-
-      <Text style={styles.ocr}>OCR: {book.ocr_text}</Text>
+      <Text style={styles.ocr}>{book.text}</Text>
 
       <View style={styles.footer}>
-        <Text style={styles.score}>Score: {book.score.toFixed(1)}%</Text>
+        <Text style={styles.cornerCount}>{book.corners.length} corners</Text>
 
-        <Text style={styles.spine}>#{book.spine_idx}</Text>
+        <Text style={styles.spine}>ID: {book.id}</Text>
       </View>
     </View>
   );
@@ -41,15 +37,10 @@ const styles = StyleSheet.create({
     ...Typography.title,
   },
 
-  author: {
-    ...Typography.bodySecondary,
-    color: Colors.primary,
-    marginTop: Spacing.xs,
-  },
-
   ocr: {
-    ...Typography.caption,
+    ...Typography.body,
     marginTop: Spacing.md,
+    color: Colors.text,
   },
 
   footer: {
@@ -60,7 +51,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
 
-  score: {
+  cornerCount: {
     ...Typography.caption,
     color: Colors.primary,
     fontWeight: "600",

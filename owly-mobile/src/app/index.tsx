@@ -58,7 +58,14 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[styles.secondaryButton, loading && styles.disabledButton]}
           disabled={loading}
-          onPress={handleUploadPhoto}
+          onPress={() =>
+            router.push({
+              pathname: "/scan",
+              params: {
+                source: "gallery",
+              },
+            })
+          }
         >
           <Text style={styles.secondaryButtonText}>
             {loading ? "Scanning..." : "Upload Photo"}
