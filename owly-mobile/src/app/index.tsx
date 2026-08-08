@@ -1,15 +1,21 @@
 import React from "react";
-import {Alert, Image, StyleSheet, Text, TouchableOpacity, View,} from "react-native";
+import {
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { pickImage } from "@/utils/imagePicker";
 import { useScanBookshelf } from "@/hooks/useScanBookshelf";
-import { Colors, Spacing, Typography } from "@/theme";
+import { Colors, Spacing, Typography, Radius, Shadows } from "@/theme";
 
 export default function HomeScreen() {
   const router = useRouter();
-
   const { scan, loading } = useScanBookshelf();
 
   const handleUploadPhoto = async () => {
@@ -47,7 +53,15 @@ export default function HomeScreen() {
 
         <Text style={styles.title}>Owly</Text>
 
-        <Text style={styles.tagline}>Your Personal Bookshelf Companion</Text>
+        <View style={styles.divider}>
+          <View style={styles.line} />
+          <View style={styles.dot} />
+          <View style={styles.line} />
+        </View>
+
+        <Text style={styles.tagline}>
+          Your Personal Bookshelf Companion
+        </Text>
 
         <Text style={styles.description}>
           Scan your bookshelf to discover, organize and rediscover your books.
@@ -56,28 +70,25 @@ export default function HomeScreen() {
 
       <View style={styles.actions}>
         <TouchableOpacity
-          style={[styles.secondaryButton, loading && styles.disabledButton]}
-          disabled={loading}
-          onPress={() =>
-            router.push({
-              pathname: "/scan",
-              params: {
-                source: "gallery",
-              },
-            })
-          }
-        >
-          <Text style={styles.secondaryButtonText}>
-            {loading ? "Scanning..." : "Upload Photo"}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={styles.primaryButton}
           onPress={() => router.push("/scan")}
         >
           <Text style={styles.primaryButtonText}>Scan Bookshelf</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.secondaryButton, loading && styles.disabledButton]}
+          disabled={loading}
+          onPress={handleUploadPhoto}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {loading ? "Scanning..." : "Upload Photo"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Private • Secure • AI Powered</Text>
       </View>
     </SafeAreaView>
   );
@@ -86,68 +97,109 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.background,
-    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: Spacing["2xl"],
-    paddingBottom: Spacing["2xl"],
+    paddingTop: 40,
+    paddingBottom: 28,
+    justifyContent: "space-between",
   },
 
   hero: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.md,
   },
 
   logo: {
-    width: 140,
-    height: 140,
+    width: 200,
+    height: 200,
+    marginBottom: Spacing.lg,
   },
 
   title: {
     ...Typography.h1,
+    fontSize: 52,
+    color: Colors.primary,
+    marginBottom: 14,
+  },
+
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+
+  line: {
+    width: 50,
+    height: 1,
+    backgroundColor: "#D7C8B4",
+  },
+
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#D7C8B4",
+    marginHorizontal: 10,
   },
 
   tagline: {
     ...Typography.body,
+    fontSize: 30,
     textAlign: "center",
+    color: Colors.primary,
+    marginBottom: 24,
+    lineHeight: 42,
   },
 
   description: {
     ...Typography.caption,
     textAlign: "center",
-    paddingHorizontal: Spacing.lg,
+    lineHeight: 26,
+    paddingHorizontal: 10,
   },
 
   actions: {
-    gap: Spacing.md,
+    gap: 18,
+  },
+
+  primaryButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.lg,
+    paddingVertical: 18,
+    alignItems: "center",
+    ...Shadows.md,
+  },
+
+  primaryButtonText: {
+    ...Typography.button,
+    fontSize: 20,
   },
 
   secondaryButton: {
     borderWidth: 1.5,
     borderColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: Radius.lg,
+    paddingVertical: 18,
     alignItems: "center",
   },
 
   secondaryButtonText: {
     ...Typography.button,
+    fontSize: 20,
     color: Colors.primary,
-  },
-
-  primaryButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-
-  primaryButtonText: {
-    ...Typography.button,
   },
 
   disabledButton: {
     opacity: 0.6,
+  },
+
+  footer: {
+    alignItems: "center",
+    marginTop: 24,
+  },
+
+  footerText: {
+    color: "#7C7C7C",
+    fontSize: 16,
+    fontWeight: "500",
   },
 });
