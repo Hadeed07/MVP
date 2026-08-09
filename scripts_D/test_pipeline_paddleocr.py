@@ -1,5 +1,5 @@
-from scripts_D.models import model, paddle_ocr, embedding_model
-
+from scripts_D.model_paddleocr import model, paddle_ocr, embedding_model
+from IPython.display import display
 import cv2
 import chromadb
 import hashlib
@@ -8,7 +8,6 @@ import pandas as pd
 import requests
 import re
 import time
-
 from rapidfuzz import process, fuzz
 
 
@@ -48,13 +47,12 @@ def normalize_text(text):
 # =====================================================================
 
 SPINOFF_KEYWORDS = [
-    "journal",
-    "workbook",
-    "summary",
-    "companion",
-    "study guide",
-    "guide to",
-    "notebook",
+    # "journal",
+    # "workbook",
+    # "summary",
+    # "companion",
+    # "study guide",
+    # "notebook",
 ]
 
 
@@ -66,6 +64,54 @@ def is_likely_spinoff(title):
     title = title.lower()
 
     return any(keyword in title for keyword in SPINOFF_KEYWORDS)
+
+
+# =====================================================================
+# OCR NOISE FILTERING
+# =====================================================================
+# Grow this list ONLY as you actually observe an imprint name causing
+# a bad match — do not add generic words. Some imprint names collide
+# with real words (e.g. "Harper" is also an author surname, "House"
+# appears in real titles like "Bleak House"), so being conservative
+# here matters more than being comprehensive.
+
+PUBLISHER_NOISE_WORDS = {
+    "beck",
+    "blanvalet",
+}
+
+MIN_BARCODE_DIGITS = 3
+
+
+def is_barcode_like(text):
+    """
+    True if a cleaned OCR segment is purely digits and long enough
+    to be a shelf-tag/barcode number rather than a title.
+
+    NOTE: this will also drop a spine whose ONLY visible text is a
+    bare number (e.g. a spine that OCR's as just "1984" with no
+    other line detected). In practice queries combine multiple OCR
+    lines per spine, so this is low risk, but worth knowing if a
+    numeric-titled book goes unexpectedly unmatched.
+    """
+
+    return bool(text) and text.isdigit() and len(text) >= MIN_BARCODE_DIGITS
+
+
+def strip_publisher_noise(text):
+    """
+    Removes known publisher/imprint tokens from an already-normalized
+    OCR segment (token-level, since imprint names are often fused
+    mid-string with the title/author rather than on their own line).
+    """
+
+    tokens = [
+        token
+        for token in text.split()
+        if token not in PUBLISHER_NOISE_WORDS
+    ]
+
+    return " ".join(tokens)
 
 
 # =====================================================================
@@ -98,8 +144,12 @@ class SpinePipeline:
         self.match_score_cutoff = 80
         self.google_validation_cutoff = 60
 
+        # Used by get_recommendations() when suggesting similar
+        # books for an already-matched book (not for OCR matching).
+        self.recommendation_top_k = 5
+
         self.det_unclip_ratio = 1.2
-        self.min_description_words = 25
+        self.min_description_words = 0
 
         self.google_books_api_key = google_books_api_key
 
@@ -144,7 +194,7 @@ class SpinePipeline:
             collection_name
         )
 
-            # ==================================================================
+    # ==================================================================
     # GEOMETRY
     # ==================================================================
 
@@ -255,8 +305,8 @@ class SpinePipeline:
 
     def preprocess(self, crop):
 
-        TARGET_HEIGHT = 256
-        TARGET_WIDTH = 600
+        TARGET_HEIGHT = 300
+        TARGET_WIDTH = 750
 
         gray = cv2.cvtColor(
             crop,
@@ -318,44 +368,49 @@ class SpinePipeline:
 
     def run_ocr(self, crops):
 
+        if not crops:
+            return []
+
+        processed_images = [
+            self.preprocess(crop)
+            for crop in crops
+        ]
+
+        predictions = self.paddle_ocr.predict(
+            processed_images,
+            text_det_unclip_ratio=self.det_unclip_ratio
+        )
+
         results = []
 
-        for crop in crops:
+        for prediction in predictions:
 
-            image = self.preprocess(crop)
+            texts = []
+            scores = []
 
-            predictions = self.paddle_ocr.predict(
-                image,
-                text_det_unclip_ratio=self.det_unclip_ratio
-            )
+            for text, score in zip(
+                prediction["rec_texts"],
+                prediction["rec_scores"]
+            ):
 
-            for prediction in predictions:
+                if score >= self.score_threshold:
 
-                texts = []
-                scores = []
+                    cleaned = normalize_text(text)
 
-                for text, score in zip(
-                    prediction["rec_texts"],
-                    prediction["rec_scores"]
-                ):
+                    if cleaned:
 
-                    if score >= self.score_threshold:
+                        texts.append(cleaned)
+                        scores.append(score)
 
-                        cleaned = normalize_text(text)
+            results.append({
 
-                        if cleaned:
-                            texts.append(cleaned)
-                            scores.append(score)
+                "text": texts,
 
-                if texts:
+                "scores": scores
 
-                    results.append({
-                        "text": texts,
-                        "scores": scores
-                    })
+            })
 
         return results
-
 
     # ==================================================================
     # QUERY STRINGS
@@ -379,8 +434,9 @@ class SpinePipeline:
 
         return queries
 
-        # ==================================================================
-    # LOCAL CATALOG MATCHING
+
+    # ==================================================================
+    # LOCAL CATALOG MATCHING (STAGE 1 — RAPIDFUZZ)
     # ==================================================================
 
     def match_books(self, query_strings):
@@ -499,6 +555,10 @@ class SpinePipeline:
 
             authors = info.get("authors", [])
 
+            if not title:
+
+                continue
+
             if is_likely_spinoff(title):
 
                 continue
@@ -516,13 +576,9 @@ class SpinePipeline:
 
                 continue
 
-            description = info.get("description")
+            description = info.get("description") or ""
 
-            if not description:
-
-                continue
-
-            if len(description.split()) < self.min_description_words:
+            if description and len(description.split()) < self.min_description_words:
 
                 continue
 
@@ -613,10 +669,20 @@ class SpinePipeline:
         # -----------------------------
         # Generate embedding
         # -----------------------------
+        # Falls back to title+author when there's no description
+        # (e.g. some Google Books records lack one) — encoding an
+        # empty string would otherwise produce a degenerate embedding
+        # that's useless for future recommendation queries.
+
+        text_for_embedding = (
+            book["Description"]
+            if book["Description"]
+            else f"{book['Title']} {book['Author']}"
+        )
 
         embedding = self.embedding_model.encode(
 
-            [book["Description"]]
+            [text_for_embedding]
 
         ).tolist()[0]
 
@@ -775,6 +841,85 @@ class SpinePipeline:
 
 
     # =====================================================================
+    # RECOMMENDATIONS (SIMILAR BOOKS FOR AN ALREADY-MATCHED BOOK)
+    # =====================================================================
+
+    def get_recommendations(self, isbn13, top_k=None):
+        """
+        Given the isbn13 of a book that has ALREADY been matched
+        (from local catalog or Google Books), finds similar books by
+        looking up that book's own description embedding in Chroma
+        and retrieving its nearest neighbors.
+
+        This is different from match_via_embeddings (removed): here
+        we start from a known book's own embedding, not from a raw
+        OCR query string, so there's no query/description domain
+        mismatch — we're comparing descriptions to descriptions.
+
+        Returns a list of dicts (empty list if isbn13 isn't in the
+        Chroma collection or has no stored embedding).
+        """
+
+        k = top_k if top_k is not None else self.recommendation_top_k
+
+        if not isbn13:
+            return []
+
+        try:
+
+            record = self.collection.get(
+                ids=[isbn13],
+                include=["embeddings"]
+            )
+
+        except Exception:
+
+            return []
+
+        embeddings = record.get("embeddings")
+
+        if embeddings is None or len(embeddings) == 0:
+            return []
+
+        embedding = embeddings[0]
+
+        # +1 result requested since the book itself will typically
+        # come back as its own nearest neighbor (distance ~0).
+        result = self.collection.query(
+            query_embeddings=[embedding],
+            n_results=k + 1
+        )
+
+        ids = result.get("ids", [[]])[0]
+        distances = result.get("distances", [[]])[0]
+        metadatas = result.get("metadatas", [[]])[0]
+
+        recommendations = []
+
+        for rec_id, distance, metadata in zip(ids, distances, metadatas):
+
+            if rec_id == isbn13:
+                continue
+
+            recommendations.append({
+
+                "ISBN13": rec_id,
+                "Title": metadata.get("title", ""),
+                "Author": metadata.get("authors", ""),
+                "Categories": metadata.get("categories", ""),
+                "Average Rating": metadata.get("average_rating", ""),
+                "Thumbnail": metadata.get("thumbnail", ""),
+                "Distance": distance
+
+            })
+
+            if len(recommendations) >= k:
+                break
+
+        return recommendations
+
+
+    # =====================================================================
     # COMPLETE PIPELINE
     # =====================================================================
 
@@ -795,16 +940,26 @@ class SpinePipeline:
         queries = self.extract_query_strings(ocr)
 
 
+        # --------------------------------
+        # Stage 1 — rapidfuzz local catalog
+        # --------------------------------
+
         matches, unmatched = self.match_books(
 
             queries
 
         )
 
+        # --------------------------------
+        # Stage 2 — Google Books fallback
+        # --------------------------------
+        # NOTE: previously "unmatched" was left untouched here even
+        # after a query was successfully resolved via Google Books,
+        # so num_unmatched_books / unmatched_queries over-reported
+        # failures. still_unmatched now tracks only queries that
+        # remain unresolved after every stage.
 
-        # --------------------------------
-        # Google Books fallback
-        # --------------------------------
+        still_unmatched = []
 
         if self.google_books_api_key:
 
@@ -818,71 +973,85 @@ class SpinePipeline:
 
                 if book is None:
 
+                    still_unmatched.append(query)
+
                     continue
 
                 matches.append(book)
 
                 self.add_to_local_catalog(book)
 
+        else:
+
+            still_unmatched = unmatched
+
+        unmatched = still_unmatched
 
         # --------------------------------
-        # Return only book details
+        # Attach recommendations to each match
         # --------------------------------
 
-        if len(matches) == 0:
+        for match in matches:
 
-            return pd.DataFrame(
-
-                columns=[
-
-                    "Title",
-
-                    "Author",
-
-                    "ISBN13",
-
-                    "Source",
-
-                    "Description",
-
-                    "Thumbnail"
-
-                ]
-
+            match["Recommendations"] = self.get_recommendations(
+                match.get("ISBN13")
             )
 
-
-        df = pd.DataFrame(matches)
-
+        # ----------------------------------------
+        # Convert matches to DataFrame
+        # ----------------------------------------
 
         columns = [
-
             "Title",
-
             "Author",
-
             "ISBN13",
-
             "Source",
-
             "Description",
-
-            "Thumbnail"
-
+            "Thumbnail",
+            "Recommendations"
         ]
 
+        if matches:
+            books_df = pd.DataFrame(matches)[columns]
+        else:
+            books_df = pd.DataFrame(columns=columns)
 
-        return df[columns]
 
-    def display_results(self, books):
+        # ----------------------------------------
+        # Return complete pipeline output
+        # ----------------------------------------
 
-        if books.empty:
+        return {
+            "ocr_results": ocr,
+            "query_strings": queries,
+            "matched_books": books_df,
+            "unmatched_queries": unmatched,
+            "num_detected_spines": len(crops),
+            "num_ocr_results": len(ocr),
+            "num_matched_books": len(books_df),
+            "num_unmatched_books": len(unmatched)
+        }
 
-            print("\nNo books detected.\n")
-            return
 
-        print("\nDetected Books\n")
+    def display_results(self, output):
 
-        print(
-            books.to_string(index=False)
-        )
+            print("=" * 80)
+            print("BOOK DETECTION SUMMARY")
+            print("=" * 80)
+
+            print(f"OCR Results     : {output['ocr_results']}")
+            print(f"Detected Spines : {output['num_detected_spines']}")
+            print(f"Matched Books   : {output['num_matched_books']}")
+            print(f"Unmatched Books : {output['num_unmatched_books']}")
+
+            print("\nMatched Books")
+            print("-" * 80)
+
+            display(output["matched_books"])
+
+            if output["unmatched_queries"]:
+                print("\nBooks Not Found")
+                print("-" * 80)
+
+                for book in output["unmatched_queries"]:
+                    print(f"• {book}")

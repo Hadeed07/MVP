@@ -9,8 +9,9 @@ model = YOLO("models/best_obb.pt")
 paddle_ocr = PaddleOCR(
     enable_mkldnn=False,
     use_doc_orientation_classify=True,
-    use_doc_unwarping=False,
-    use_textline_orientation=True
+    use_textline_orientation=True,
+    text_detection_model_name="PP-OCRv6_medium_det",
+    text_recognition_model_name="PP-OCRv6_medium_rec"
 )
 
 # Initialize Sentence Tranformer
