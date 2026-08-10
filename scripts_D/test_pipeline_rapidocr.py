@@ -1,5 +1,6 @@
 from scripts_D.model_rapidocr import rapidocr_engine, model, embedding_model
 from IPython.display import display
+from PIL import Image
 import cv2
 import chromadb
 import hashlib
@@ -9,11 +10,6 @@ import requests
 import re
 import time
 from rapidfuzz import process, fuzz
-
-
-# =====================================================================
-# TEXT NORMALIZATION
-# =====================================================================
 
 def normalize_text(text):
     """
@@ -41,82 +37,27 @@ def normalize_text(text):
 
     return " ".join(tokens).lower()
 
-
-# =====================================================================
-# GOOGLE BOOKS FILTER
-# =====================================================================
-
-SPINOFF_KEYWORDS = [
-    # "journal",
-    # "workbook",
-    # "summary",
-    # "companion",
-    # "study guide",
-    # "notebook",
-]
-
-
-def is_likely_spinoff(title):
-
+def remove_publisher_numbers(title):
+    """
+    Removes likely publisher/edition numbers from OCR queries.
+    Numbers with >4 digits are always removed; short titles keep numbers.
+    """
     if not title:
-        return False
+        return ""
 
-    title = title.lower()
+    words = normalize_text(title).split()
+    filtered = []
 
-    return any(keyword in title for keyword in SPINOFF_KEYWORDS)
+    for i, word in enumerate(words):
+        if word.isdigit():
+            if len(word) > 4:
+                continue
+            if len(words) < 3 or i <= 1:
+                filtered.append(word)
+            continue
+        filtered.append(word)
 
-
-# =====================================================================
-# OCR NOISE FILTERING
-# =====================================================================
-# Grow this list ONLY as you actually observe an imprint name causing
-# a bad match — do not add generic words. Some imprint names collide
-# with real words (e.g. "Harper" is also an author surname, "House"
-# appears in real titles like "Bleak House"), so being conservative
-# here matters more than being comprehensive.
-
-PUBLISHER_NOISE_WORDS = {
-    "beck",
-    "blanvalet",
-}
-
-MIN_BARCODE_DIGITS = 3
-
-
-def is_barcode_like(text):
-    """
-    True if a cleaned OCR segment is purely digits and long enough
-    to be a shelf-tag/barcode number rather than a title.
-
-    NOTE: this will also drop a spine whose ONLY visible text is a
-    bare number (e.g. a spine that OCR's as just "1984" with no
-    other line detected). In practice queries combine multiple OCR
-    lines per spine, so this is low risk, but worth knowing if a
-    numeric-titled book goes unexpectedly unmatched.
-    """
-
-    return bool(text) and text.isdigit() and len(text) >= MIN_BARCODE_DIGITS
-
-
-def strip_publisher_noise(text):
-    """
-    Removes known publisher/imprint tokens from an already-normalized
-    OCR segment (token-level, since imprint names are often fused
-    mid-string with the title/author rather than on their own line).
-    """
-
-    tokens = [
-        token
-        for token in text.split()
-        if token not in PUBLISHER_NOISE_WORDS
-    ]
-
-    return " ".join(tokens)
-
-
-# =====================================================================
-# PIPELINE
-# =====================================================================
+    return " ".join(filtered)
 
 class SpinePipeline:
 
@@ -128,43 +69,28 @@ class SpinePipeline:
         google_books_api_key=None,
     ):
 
-        # ---------------------------------------------------------
-        # MODELS
-        # ---------------------------------------------------------
-
         self.model = model
         self.rapidocr_engine = rapidocr_engine
         self.embedding_model = embedding_model
 
-        # ---------------------------------------------------------
-        # PARAMETERS
-        # ---------------------------------------------------------
+        # Minimum RapidOCR confidence required to keep an OCR segment.
+        self.score_threshold = 0.80
 
-        self.score_threshold = 0.80  # NOTE: carried over unchanged from
-        # the PaddleOCR baseline for structural parity — RapidOCR's
-        # confidence scores are NOT calibrated on the same scale (you
-        # saw this earlier: 0.80 filtered out every result). Retune
-        # this against real RapidOCR score output before trusting it.
+        # Minimum RapidFuzz score required for a local catalog match.
         self.match_score_cutoff = 80
+
+        # Minimum score required to accept a Google Books result.
         self.google_validation_cutoff = 60
 
-        # Used by get_recommendations() when suggesting similar
-        # books for an already-matched book (not for OCR matching).
+        # Number of similar books returned for each matched book.
         self.recommendation_top_k = 5
 
-        self.det_unclip_ratio = 1.2  # NOTE: PaddleOCR-specific
-        # detection param, unused by RapidOCR's run_ocr below. Kept
-        # here only so this file's parameter list stays structurally
-        # identical to the PaddleOCR version, per your request.
+        self.det_unclip_ratio = 1.2
         self.min_description_words = 0
 
         self.google_books_api_key = google_books_api_key
 
         self.catalog_path = catalog_path
-
-        # ---------------------------------------------------------
-        # LOAD LOCAL CATALOG
-        # ---------------------------------------------------------
 
         self.catalog_df = pd.read_csv(catalog_path)
 
@@ -189,10 +115,6 @@ class SpinePipeline:
             .tolist()
         )
 
-        # ---------------------------------------------------------
-        # CHROMA DATABASE
-        # ---------------------------------------------------------
-
         self.chroma_client = chromadb.PersistentClient(
             path=chroma_path
         )
@@ -200,10 +122,6 @@ class SpinePipeline:
         self.collection = self.chroma_client.get_collection(
             collection_name
         )
-
-    # ==================================================================
-    # GEOMETRY
-    # ==================================================================
 
     @staticmethod
     def order_points(pts):
@@ -226,11 +144,6 @@ class SpinePipeline:
 
         return rect
 
-
-    # ==================================================================
-    # DETECTION
-    # ==================================================================
-
     def detect_spines(self, image):
 
         results = self.model.predict(
@@ -242,73 +155,93 @@ class SpinePipeline:
 
         return results[0].obb.xyxyxyxy.cpu().numpy()
 
+    def annotate_detections(self, image, obb_corners):
+        """Draw each YOLO OBB with its crop index."""
+        annotated = image.copy()
 
-    # ==================================================================
-    # CROPPING
-    # ==================================================================
+        for crop_idx, corners in enumerate(obb_corners):
+            points = np.asarray(corners, dtype=np.int32).reshape((-1, 1, 2))
+            cv2.polylines(
+                annotated,
+                [points],
+                isClosed=True,
+                color=(0, 255, 0),
+                thickness=2
+            )
+
+            x = int(np.min(points[:, 0, 0]))
+            y = int(np.min(points[:, 0, 1]))
+
+            label = str(crop_idx)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.8
+            thickness = 2
+
+            (tw, th), baseline = cv2.getTextSize(
+                label, font, font_scale, thickness
+            )
+
+            x = max(0, x)
+            y = max(th + baseline + 4, y)
+
+            cv2.rectangle(
+                annotated,
+                (x, y - th - baseline - 4),
+                (x + tw + 8, y + 2),
+                (0, 255, 0),
+                -1
+            )
+
+            cv2.putText(
+                annotated,
+                label,
+                (x + 4, y - 2),
+                font,
+                font_scale,
+                (0, 0, 0),
+                thickness,
+                cv2.LINE_AA
+            )
+
+        return annotated
 
     def crop_spines(self, image, obb_corners):
-
         crops = []
 
-        for corners in obb_corners:
-
+        for crop_idx, corners in enumerate(obb_corners):
             corners = self.order_points(corners)
 
-            width = int(
-                max(
-                    np.linalg.norm(corners[2] - corners[3]),
-                    np.linalg.norm(corners[1] - corners[0])
-                )
-            )
-
-            height = int(
-                max(
-                    np.linalg.norm(corners[1] - corners[2]),
-                    np.linalg.norm(corners[0] - corners[3])
-                )
-            )
+            width = int(max(
+                np.linalg.norm(corners[2] - corners[3]),
+                np.linalg.norm(corners[1] - corners[0])
+            ))
+            height = int(max(
+                np.linalg.norm(corners[1] - corners[2]),
+                np.linalg.norm(corners[0] - corners[3])
+            ))
 
             if width < 2 or height < 2:
+                crops.append(None)
                 continue
 
-            destination = np.array(
-                [
-                    [0, 0],
-                    [width - 1, 0],
-                    [width - 1, height - 1],
-                    [0, height - 1],
-                ],
-                dtype=np.float32,
-            )
+            destination = np.array([
+                [0, 0], [width - 1, 0],
+                [width - 1, height - 1], [0, height - 1]
+            ], dtype=np.float32)
 
-            matrix = cv2.getPerspectiveTransform(
-                corners,
-                destination
-            )
-
+            matrix = cv2.getPerspectiveTransform(corners, destination)
             crop = cv2.warpPerspective(
-                image,
-                matrix,
-                (width, height),
+                image, matrix, (width, height),
                 flags=cv2.INTER_CUBIC,
-                borderMode=cv2.BORDER_REPLICATE,
+                borderMode=cv2.BORDER_REPLICATE
             )
 
             if crop.shape[0] > crop.shape[1]:
-                crop = cv2.rotate(
-                    crop,
-                    cv2.ROTATE_90_CLOCKWISE
-                )
+                crop = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
 
             crops.append(crop)
 
         return crops
-
-
-    # ==================================================================
-    # PREPROCESSING
-    # ==================================================================
 
     def preprocess(self, crop):
 
@@ -326,6 +259,10 @@ class SpinePipeline:
         )
 
         gray = clahe.apply(gray)
+
+        # Mild sharpening that performed best on slightly blurred spines.
+        blurred = cv2.GaussianBlur(gray, (0, 0), sigmaX=1.0)
+        gray = cv2.addWeighted(gray, 1.35, blurred, -0.35, 0)
 
         h, w = gray.shape
 
@@ -368,91 +305,52 @@ class SpinePipeline:
             cv2.COLOR_GRAY2BGR
         )
 
-
-    # ==================================================================
-    # OCR
-    # ==================================================================
-
-    def run_ocr(self, crops):
-        """
-        RapidOCR-based OCR. One necessary structural difference from
-        the PaddleOCR version: PaddleOCR's predict() accepts a batch
-        (list of images) in a single call, but RapidOCR's engine call
-        is single-image only, so this loops per-crop instead of
-        batching. Everything else (score filtering, normalize_text,
-        output format) matches the PaddleOCR version exactly.
-        """
-
-        if not crops:
-            return []
-
+    def run_ocr(self, crop_records):
+        """Run RapidOCR while preserving the crop index for every spine."""
         results = []
 
-        for crop in crops:
+        for record in crop_records:
+            crop = record["crop"]
+            record["ocr_status"] = "failed"
+            record["ocr_text"] = []
+            record["ocr_scores"] = []
+            record["ocr_query"] = ""
+
+            if crop is None:
+                results.append(record)
+                continue
 
             image = self.preprocess(crop)
-
             prediction = self.rapidocr_engine(image)
 
-            texts = []
-            scores = []
-
             if prediction.txts:
-
                 for text, score in zip(prediction.txts, prediction.scores):
-
                     if score >= self.score_threshold:
-
                         cleaned = normalize_text(text)
-
                         if cleaned:
+                            record["ocr_text"].append(cleaned)
+                            record["ocr_scores"].append(float(score))
 
-                            texts.append(cleaned)
-                            scores.append(score)
+            if record["ocr_text"]:
+                record["ocr_status"] = "success"
+                query = normalize_text(" ".join(record["ocr_text"]))
+                record["ocr_query"] = remove_publisher_numbers(query)
 
-            results.append({
-
-                "text": texts,
-
-                "scores": scores
-
-            })
+            results.append(record)
 
         return results
 
-    # ==================================================================
-    # QUERY STRINGS
-    # ==================================================================
+    def match_books(self, crop_records):
+        """Match each OCR query while keeping its crop record attached."""
+        for record in crop_records:
+            record["local_match_status"] = "not_attempted"
+            record["local_match_score"] = None
+            record["local_match"] = None
+            record["match_source"] = None
 
-    def extract_query_strings(self, ocr_results):
-
-        queries = []
-
-        for spine in ocr_results:
-
-            if not spine["text"]:
+            query = record.get("ocr_query", "")
+            if not query:
                 continue
-
-            query = normalize_text(
-                " ".join(spine["text"])
-            )
-
-            if query:
-                queries.append(query)
-
-        return queries
-
-
-    # ==================================================================
-    # LOCAL CATALOG MATCHING (STAGE 1 — RAPIDFUZZ)
-    # ==================================================================
-
-    def match_books(self, query_strings):
-
-        matches = []
-        unmatched = []
-
-        for query in query_strings:
 
             result = process.extractOne(
                 query,
@@ -462,30 +360,28 @@ class SpinePipeline:
             )
 
             if result is None:
-                unmatched.append(query)
+                record["local_match_status"] = "unmatched"
                 continue
 
             _, score, idx = result
-
             row = self.catalog_df.iloc[idx]
 
-            matches.append({
-
+            book = {
                 "Title": row["title"],
                 "Author": row["authors"],
                 "ISBN13": row["isbn13"],
                 "Description": row.get("description", ""),
                 "Thumbnail": row.get("thumbnail", ""),
-                "Source": "Local Catalog"
+                "Source": "Local Catalog",
+                "Match Score": float(score)
+            }
 
-            })
+            record["local_match_status"] = "matched"
+            record["local_match_score"] = float(score)
+            record["local_match"] = book
+            record["match_source"] = "Local Catalog"
 
-        return matches, unmatched
-
-
-    # ==================================================================
-    # GOOGLE BOOKS FALLBACK
-    # ==================================================================
+        return crop_records
 
     def fetch_from_google_books(
         self,
@@ -528,14 +424,33 @@ class SpinePipeline:
             except requests.exceptions.HTTPError:
 
                 if response is not None and response.status_code in (
+                    429,
                     500,
                     502,
                     503,
                     504
                 ):
 
-                    time.sleep(1.5 * (attempt + 1))
-                    continue
+                    if attempt < max_retries - 1:
+
+                        retry_after = response.headers.get("Retry-After")
+
+                        if retry_after is not None:
+
+                            try:
+                                delay = float(retry_after)
+                            except ValueError:
+                                delay = 1.5 * (2 ** attempt)
+
+                        else:
+
+                            delay = 1.5 * (2 ** attempt)
+
+                        if response.status_code == 429:
+                            print(f"429 rate limited, retrying in {delay:.1f}s : {query}")
+
+                        time.sleep(delay)
+                        continue
 
                 return None
 
@@ -564,10 +479,6 @@ class SpinePipeline:
             authors = info.get("authors", [])
 
             if not title:
-
-                continue
-
-            if is_likely_spinoff(title):
 
                 continue
 
@@ -626,11 +537,7 @@ class SpinePipeline:
             }
 
         return None
-
-    # =====================================================================
-    # SAVE NEW GOOGLE BOOKS TO LOCAL DATABASE
-    # =====================================================================
-
+    
     def add_to_local_catalog(self, book):
 
         isbn13 = book["ISBN13"]
@@ -644,11 +551,6 @@ class SpinePipeline:
             ).hexdigest()[:12]
 
             book["ISBN13"] = isbn13
-
-
-        # -----------------------------
-        # Already exists?
-        # -----------------------------
 
         if isbn13 in self.catalog_df["isbn13"].values:
             return
@@ -672,11 +574,6 @@ class SpinePipeline:
         if duplicate:
 
             return
-
-
-        # -----------------------------
-        # Generate embedding
-        # -----------------------------
         # Falls back to title+author when there's no description
         # (e.g. some Google Books records lack one) — encoding an
         # empty string would otherwise produce a degenerate embedding
@@ -693,11 +590,6 @@ class SpinePipeline:
             [text_for_embedding]
 
         ).tolist()[0]
-
-
-        # -----------------------------
-        # Store in Chroma
-        # -----------------------------
 
         self.collection.upsert(
 
@@ -726,11 +618,6 @@ class SpinePipeline:
             ]
 
         )
-
-
-        # -----------------------------
-        # Store in local dataframe
-        # -----------------------------
 
         row = {
 
@@ -796,11 +683,6 @@ class SpinePipeline:
 
         )
 
-
-        # -----------------------------
-        # Update lookup cache
-        # -----------------------------
-
         key = normalize_text(
 
             book["Title"] +
@@ -812,11 +694,6 @@ class SpinePipeline:
         )
 
         self.choices.append(key)
-
-
-        # -----------------------------
-        # Save CSV
-        # -----------------------------
 
         columns = [
 
@@ -846,11 +723,6 @@ class SpinePipeline:
             header=False
 
         )
-
-
-    # =====================================================================
-    # RECOMMENDATIONS (SIMILAR BOOKS FOR AN ALREADY-MATCHED BOOK)
-    # =====================================================================
 
     def get_recommendations(self, isbn13, top_k=None):
         """
@@ -926,140 +798,204 @@ class SpinePipeline:
 
         return recommendations
 
-
-    # =====================================================================
-    # COMPLETE PIPELINE
-    # =====================================================================
-
     def results(self, image):
-
         detections = self.detect_spines(image)
 
-        crops = self.crop_spines(
-
-            image,
-
-            detections
-
+        yolo_output_image = self.annotate_detections(
+            image, detections
         )
 
-        ocr = self.run_ocr(crops)
+        crops = self.crop_spines(image, detections)
 
-        queries = self.extract_query_strings(ocr)
-
-
-        # --------------------------------
-        # Stage 1 — rapidfuzz local catalog
-        # --------------------------------
-
-        matches, unmatched = self.match_books(
-
-            queries
-
-        )
-
-        # --------------------------------
-        # Stage 2 — Google Books fallback
-        # --------------------------------
-        # NOTE: previously "unmatched" was left untouched here even
-        # after a query was successfully resolved via Google Books,
-        # so num_unmatched_books / unmatched_queries over-reported
-        # failures. still_unmatched now tracks only queries that
-        # remain unresolved after every stage.
-
-        still_unmatched = []
-
-        if self.google_books_api_key:
-
-            for query in unmatched:
-
-                book = self.fetch_from_google_books(
-
-                    query
-
-                )
-
-                if book is None:
-
-                    still_unmatched.append(query)
-
-                    continue
-
-                matches.append(book)
-
-                self.add_to_local_catalog(book)
-
-        else:
-
-            still_unmatched = unmatched
-
-        unmatched = still_unmatched
-
-        # --------------------------------
-        # Attach recommendations to each match
-        # --------------------------------
-
-        for match in matches:
-
-            match["Recommendations"] = self.get_recommendations(
-                match.get("ISBN13")
-            )
-
-        # ----------------------------------------
-        # Convert matches to DataFrame
-        # ----------------------------------------
-
-        columns = [
-            "Title",
-            "Author",
-            "ISBN13",
-            "Source",
-            "Description",
-            "Thumbnail",
-            "Recommendations"
+        crop_records = [
+            {
+                "crop_idx": idx,
+                "bbox": np.asarray(detections[idx]).tolist(),
+                "crop": crop,
+                "ocr_status": "not_attempted",
+                "ocr_text": [],
+                "ocr_scores": [],
+                "ocr_query": "",
+                "local_match_status": "not_attempted",
+                "local_match_score": None,
+                "local_match": None,
+                "google_status": "not_attempted",
+                "google_match_score": None,
+                "google_match": None,
+                "match_source": None,
+                "final_status": "unmatched",
+                "final_book": None
+            }
+            for idx, crop in enumerate(crops)
         ]
 
-        if matches:
-            books_df = pd.DataFrame(matches)[columns]
+        crop_records = self.run_ocr(crop_records)
+        crop_records = self.match_books(crop_records)
+
+        for record in crop_records:
+            if record["local_match_status"] == "matched":
+                record["final_status"] = "matched"
+                record["final_book"] = record["local_match"]
+                record["google_status"] = "not_needed"
+                continue
+
+            query = record.get("ocr_query", "")
+            if not query:
+                record["google_status"] = "not_attempted"
+                continue
+
+            if not self.google_books_api_key:
+                record["google_status"] = "no_api_key"
+                continue
+
+            book = self.fetch_from_google_books(query)
+
+            if book is None:
+                record["google_status"] = "unmatched"
+                continue
+
+            record["google_status"] = "matched"
+            record["google_match"] = book
+            record["google_match_score"] = book.get("Match Score")
+            record["match_source"] = "Google Books"
+            record["final_status"] = "matched"
+            record["final_book"] = book
+
+            self.add_to_local_catalog(book)
+
+        # Add recommendations only to successfully identified books.
+        for record in crop_records:
+            book = record.get("final_book")
+            if book:
+                book["Recommendations"] = self.get_recommendations(
+                    book.get("ISBN13")
+                )
+
+        # One row per detected crop: this is the authoritative crop-to-book map.
+        tracking_columns = [
+            "Crop Index",
+            "BBox",
+            "OCR Status",
+            "OCR Text",
+            "OCR Scores",
+            "OCR Query",
+            "Local Match Status",
+            "Local Match Score",
+            "Google Books Status",
+            "Google Books Score",
+            "Match Source",
+            "Final Status",
+            "Matched Title",
+            "Matched Author",
+            "ISBN13"
+        ]
+
+        tracking_rows = []
+        for record in crop_records:
+            book = record.get("final_book") or {}
+            tracking_rows.append({
+                "Crop Index": record["crop_idx"],
+                "BBox": record["bbox"],
+                "OCR Status": record["ocr_status"],
+                "OCR Text": " | ".join(record["ocr_text"]),
+                "OCR Scores": record["ocr_scores"],
+                "OCR Query": record["ocr_query"],
+                "Local Match Status": record["local_match_status"],
+                "Local Match Score": record["local_match_score"],
+                "Google Books Status": record["google_status"],
+                "Google Books Score": record["google_match_score"],
+                "Match Source": record["match_source"],
+                "Final Status": record["final_status"],
+                "Matched Title": book.get("Title", ""),
+                "Matched Author": book.get("Author", ""),
+                "ISBN13": book.get("ISBN13", "")
+            })
+
+        crop_tracking_df = pd.DataFrame(tracking_rows, columns=tracking_columns)
+
+        matched_books = [
+            record["final_book"]
+            for record in crop_records
+            if record.get("final_book")
+        ]
+
+        book_columns = [
+            "Title", "Author", "ISBN13", "Source",
+            "Description", "Thumbnail", "Recommendations"
+        ]
+
+        if matched_books:
+            books_df = pd.DataFrame(matched_books)
+            for col in book_columns:
+                if col not in books_df.columns:
+                    books_df[col] = ""
+            books_df = books_df[book_columns]
         else:
-            books_df = pd.DataFrame(columns=columns)
+            books_df = pd.DataFrame(columns=book_columns)
 
+        unmatched_records = [
+            record for record in crop_records
+            if record["final_status"] != "matched"
+        ]
 
-        # ----------------------------------------
-        # Return complete pipeline output
-        # ----------------------------------------
+        unmatched_queries = [
+            record["ocr_query"]
+            for record in unmatched_records
+            if record["ocr_query"]
+        ]
 
         return {
-            "ocr_results": ocr,
-            "query_strings": queries,
+            "yolo_output_image": yolo_output_image,
+            "crop_records": crop_records,
+            "crop_tracking_df": crop_tracking_df,
+            "ocr_results": [
+                {
+                    "crop_idx": r["crop_idx"],
+                    "text": r["ocr_text"],
+                    "scores": r["ocr_scores"]
+                }
+                for r in crop_records
+            ],
+            "query_strings": [r["ocr_query"] for r in crop_records if r["ocr_query"]],
             "matched_books": books_df,
-            "unmatched_queries": unmatched,
-            "num_detected_spines": len(crops),
-            "num_ocr_results": len(ocr),
-            "num_matched_books": len(books_df),
-            "num_unmatched_books": len(unmatched)
+            "unmatched_queries": unmatched_queries,
+            "num_detected_spines": len(crop_records),
+            "num_ocr_results": sum(r["ocr_status"] == "success" for r in crop_records),
+            "num_matched_books": len(matched_books),
+            "num_unmatched_books": len(unmatched_records)
         }
 
-
     def display_results(self, output):
-
-            print("=" * 80)
-            print("BOOK DETECTION SUMMARY")
-            print("=" * 80)
-
-            print(f"OCR Results     : {output['ocr_results']}")
-            print(f"Detected Spines : {output['num_detected_spines']}")
-            print(f"Matched Books   : {output['num_matched_books']}")
-            print(f"Unmatched Books : {output['num_unmatched_books']}")
-
-            print("\nMatched Books")
+        if output.get("yolo_output_image") is not None:
+            print("YOLO DETECTIONS (CROP NUMBERS)")
             print("-" * 80)
+            display(
+                Image.fromarray(
+                    cv2.cvtColor(
+                        output["yolo_output_image"],
+                        cv2.COLOR_BGR2RGB
+                    )
+                )
+            )
 
-            display(output["matched_books"])
+        print("=" * 80)
+        print("BOOK DETECTION SUMMARY")
+        print("=" * 80)
+        print(f"Detected Spines : {output['num_detected_spines']}")
+        print(f"OCR Results     : {output['num_ocr_results']}")
+        print(f"Matched Books   : {output['num_matched_books']}")
+        print(f"Unmatched Books : {output['num_unmatched_books']}")
 
-            if output["unmatched_queries"]:
-                print("\nBooks Not Found")
-                print("-" * 80)
+        print("\nPER-CROP PIPELINE PROGRESS")
+        print("-" * 80)
+        display(output["crop_tracking_df"])
 
-                for book in output["unmatched_queries"]:
-                    print(f"• {book}")
+        print("\nMATCHED BOOKS")
+        print("-" * 80)
+        display(output["matched_books"])
+
+        if output["unmatched_queries"]:
+            print("\nUNMATCHED OCR QUERIES")
+            print("-" * 80)
+            for query in output["unmatched_queries"]:
+                print(f"• {query}")
