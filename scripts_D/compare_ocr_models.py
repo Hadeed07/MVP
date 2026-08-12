@@ -33,7 +33,7 @@ def run_pipeline(pipeline, image):
 
 
 def compare_pipelines(image_dir, image_names, image_ext=".jpg",
-                      catalog_path=r"..\MVP\Dataset\books_cleaned.csv",
+                      catalog_path=r"..\MVP\Dataset\Books.csv",
                       chroma_path=r"..\MVP\chroma_db",
                       google_books_api_key=None):
 

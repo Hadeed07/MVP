@@ -9,6 +9,7 @@ import chromadb
 import numpy as np
 import pandas as pd
 from .models import rapidocr_engine, model, embedding_model
+from .image_loader import load_image
 from .utils import normalize_text
 from .detection import detect_spines, annotate_detections, crop_spines
 from .preprocessing import preprocess
@@ -36,7 +37,7 @@ class SpinePipeline:
 
     def __init__(
         self,
-        catalog_path=r"..\MVP\Dataset\books_cleaned.csv",
+        catalog_path=r"..\MVP\Dataset\Books.csv",
         chroma_path=r"..\MVP\chroma_db",
         collection_name="books",
         google_books_api_key=None,
@@ -67,6 +68,13 @@ class SpinePipeline:
         self.chroma_client = chromadb.PersistentClient(path=chroma_path)
         self.collection = self.chroma_client.get_collection(collection_name)
 
+    def load_image(self, image_path):
+        try:
+            return load_image(image_path)
+        except ValueError as exc:
+            print(f"❌ {exc}")
+            return None
+    
     def detect_spines(self, image):
         return detect_spines(self.model, image)
 
@@ -125,6 +133,12 @@ class SpinePipeline:
 
         recommendation_query = query
 
+        if isinstance(image, (str, bytes)):
+            image = self.load_image(image)
+
+            if image is None:
+                return None
+            
         timing = {}
 
         step_start = time.perf_counter()
@@ -345,4 +359,7 @@ class SpinePipeline:
         }
 
     def display_results(self, output):
-        display_results(output)
+        if output is None:
+            return None
+
+        return display_results(output)
