@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
+from .config import SUPPORTED_IMAGE_EXTENSIONS 
 
 try:
     from pillow_heif import register_heif_opener
@@ -14,21 +15,6 @@ try:
 
 except ImportError:
     HEIF_AVAILABLE = False
-
-
-SUPPORTED_IMAGE_EXTENSIONS = {
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".webp",
-    ".bmp",
-    ".tif",
-    ".tiff",
-    ".heic",
-    ".heif",
-    ".avif",
-}
-
 
 def load_image(image_path):
     """

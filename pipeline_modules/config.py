@@ -1,5 +1,18 @@
 """Central configuration for the modular book-spine pipeline."""
 
+SUPPORTED_IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".avif",
+}
+
 YOLO_CONFIDENCE_THRESHOLD = 0.50
 YOLO_IOU_THRESHOLD = 0.40
 
