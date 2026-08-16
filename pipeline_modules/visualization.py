@@ -3,9 +3,10 @@
 from IPython.display import display
 from PIL import Image
 import cv2
+from typing import Any
 
 
-def display_results(output):
+def display_results(output: dict[str, Any]) -> None:
     """Display the same major output sections as the working pipeline."""
     if output.get("yolo_output_image") is not None:
         print("YOLO DETECTIONS (CROP NUMBERS)")

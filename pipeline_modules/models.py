@@ -13,7 +13,7 @@ rapidocr_engine = RapidOCR(
         "Det.model_type": ModelType.SMALL,
         "Det.ocr_version": OCRVersion.PPOCRV6,
         "Rec.engine_type": EngineType.ONNXRUNTIME,
-        "Rec.lang_type": LangRec.EN,
+            "Rec.lang_type": LangRec.EN,
         "Rec.model_type": ModelType.SMALL,
         "Rec.ocr_version": OCRVersion.PPOCRV6,
     }

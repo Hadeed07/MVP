@@ -3,7 +3,7 @@
 import pandas as pd
 
 
-def build_crop_tracking_dataframe(crop_records):
+def build_crop_tracking_dataframe(crop_records: list[dict]) -> pd.DataFrame:
     columns = [
         "Crop Index",
         "BBox",
@@ -63,7 +63,7 @@ def build_crop_tracking_dataframe(crop_records):
     )
 
 
-def build_timing_dataframe(timing):
+def build_timing_dataframe(timing: dict[str, float]) -> pd.DataFrame:
     return pd.DataFrame(
         list(timing.items()),
         columns=["Step", "Time (s)"],

@@ -13,7 +13,7 @@ from .config import (
 )
 
 
-def preprocess(crop):
+def preprocess(crop: np.ndarray) -> np.ndarray:
     """Apply grayscale + mild CLAHE + sharpening + resize/padding."""
     target_height = PREPROCESS_TARGET_HEIGHT
     target_width = PREPROCESS_TARGET_WIDTH

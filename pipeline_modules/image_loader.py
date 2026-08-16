@@ -16,7 +16,7 @@ try:
 except ImportError:
     HEIF_AVAILABLE = False
 
-def load_image(image_path):
+def load_image(image_path: str | Path) -> np.ndarray:
     """
     Load an image from disk and return it as an OpenCV BGR image.
 

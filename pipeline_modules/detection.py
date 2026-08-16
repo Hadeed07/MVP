@@ -1,17 +1,18 @@
 """YOLO OBB detection, annotation and perspective crop extraction."""
 
 import cv2
+from typing import Any
 import numpy as np
 from .config import YOLO_CONFIDENCE_THRESHOLD, YOLO_IOU_THRESHOLD
 from .utils import order_points
 
 
 def detect_spines(
-    model,
-    image,
-    confidence_threshold=YOLO_CONFIDENCE_THRESHOLD,
-    iou_threshold=YOLO_IOU_THRESHOLD,
-):
+    model: Any,
+    image: np.ndarray,
+    confidence_threshold: float=YOLO_CONFIDENCE_THRESHOLD,
+    iou_threshold: float=YOLO_IOU_THRESHOLD,
+) -> np.ndarray:
     """Run YOLO OBB detection."""
     results = model.predict(
         image,
@@ -23,7 +24,7 @@ def detect_spines(
     return results[0].obb.xyxyxyxy.cpu().numpy()
 
 
-def annotate_detections(image, obb_corners):
+def annotate_detections(image: np.ndarray, obb_corners: np.ndarray) -> np.ndarray:
     """Draw each YOLO OBB and its crop index."""
     annotated = image.copy()
 
@@ -88,7 +89,7 @@ def annotate_detections(image, obb_corners):
     return annotated
 
 
-def crop_spines(image, obb_corners):
+def crop_spines(image: np.ndarray, obb_corners: np.ndarray) -> list[np.ndarray | None]:
     """Perspective-correct each detected spine and preserve crop order."""
     crops = []
 

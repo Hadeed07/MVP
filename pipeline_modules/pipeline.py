@@ -72,7 +72,7 @@ class SpinePipeline:
         try:
             return load_image(image_path)
         except ValueError as exc:
-            print(f"❌ {exc}")
+            print(f"{exc}")
             return None
     
     def detect_spines(self, image):
@@ -358,7 +358,7 @@ class SpinePipeline:
             "timing_df": timing_df,
         }
 
-    def display_results(self, output):
+    def display(self, output):
         if output is None:
             return None
 

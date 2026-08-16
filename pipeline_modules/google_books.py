@@ -4,19 +4,20 @@ import hashlib
 import time
 import pandas as pd
 import requests
+from typing import Callable, Any
 from rapidfuzz import process, fuzz
 
 
 def fetch_from_google_books(
-    query,
-    google_books_api_key,
-    google_books_match_score_cutoff,
-    min_description_words=0,
-    normalize_text_fn=None,
-    timeout=5,
-    max_retries=3,
-    max_results=5,
-):
+    query: str,
+    google_books_api_key: str | None,
+    google_books_match_score_cutoff: float,
+    min_description_words: int = 0,
+    normalize_text_fn: Callable[[str], str] | None = None,
+    timeout: int = 5,
+    max_retries: int = 3,
+    max_results: int = 5,
+) -> dict[str, Any] | None:
     """
     Search Google Books and return the first candidate passing the
     configured fuzzy validation score.
@@ -142,15 +143,16 @@ def fetch_from_google_books(
 
 
 def add_to_local_catalog(
-    book,
-    catalog_df,
-    choices,
-    catalog_path,
-    collection,
-    embedding_model,
-    normalize_text_fn,
-    catalog_duplicate_score_cutoff=90,
-):
+    book: dict[str, Any] | None,
+    catalog_df: pd.DataFrame,
+    choices: list[str],
+    catalog_path: str,
+    collection: Any,
+    embedding_model: Any,
+    normalize_text_fn: Callable[[str], str],
+    catalog_duplicate_score_cutoff: float = 90,
+) -> tuple[pd.DataFrame, list[str]]:
+    
     """Persist a validated Google Books record and its embedding."""
     if not book:
         return catalog_df, choices

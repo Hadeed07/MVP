@@ -2,15 +2,18 @@
 
 import time
 from rapidfuzz import process, fuzz
+import pandas as pd
+from typing import Any, Callable
 
 
 def match_books(
-    crop_records,
-    catalog_df,
-    choices,
-    local_match_score_cutoff,
-    normalize_text_fn,
-):
+    crop_records: list[dict[str, Any]],
+    catalog_df: pd.DataFrame,
+    choices: list[str],
+    local_match_score_cutoff: float,
+    normalize_text_fn: Callable[[str], str],
+) -> list[dict[str, Any]]:
+
     """Match each OCR query against the normalized local catalog."""
     for record in crop_records:
         start = time.perf_counter()

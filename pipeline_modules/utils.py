@@ -7,7 +7,7 @@ import re
 import numpy as np
 
 
-def normalize_text(text):
+def normalize_text(text: str) -> str:
     """
     Cleans OCR text for OCR output and catalog matching.
 
@@ -33,7 +33,7 @@ def normalize_text(text):
     return " ".join(tokens).lower()
 
 
-def remove_publisher_numbers(title):
+def remove_publisher_numbers(title: str | None) -> str:
     """
     Removes likely publisher/edition numbers from OCR queries.
 
@@ -61,7 +61,7 @@ def remove_publisher_numbers(title):
     return " ".join(filtered)
 
 
-def order_points(pts):
+def order_points(pts: np.ndarray) -> np.ndarray:
     """Return points as top-left, top-right, bottom-right, bottom-left."""
     pts = np.asarray(pts, dtype=np.float32)
 

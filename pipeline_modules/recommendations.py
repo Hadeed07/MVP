@@ -2,9 +2,14 @@
 
 import numpy as np
 import pandas as pd
+from typing import Any
 
 
-def get_recommendations(isbn13, collection, recommendation_top_k):
+def get_recommendations(
+        isbn13: str | None,
+        collection: Any,
+        recommendation_top_k: int
+    ) -> list[dict[str, Any]]:
     """Retrieve nearest books using a matched book's Chroma embedding."""
     k = recommendation_top_k
 
@@ -57,7 +62,7 @@ def get_recommendations(isbn13, collection, recommendation_top_k):
     return recommendations
 
 
-def _deduplicate_shelf_books(matched_books_df):
+def _deduplicate_shelf_books(matched_books_df: pd.DataFrame | None) -> pd.DataFrame | None:
     """
     Remove duplicate shelf-book records by ISBN13.
 
@@ -116,13 +121,13 @@ def _deduplicate_shelf_books(matched_books_df):
 
 
 def recommend_from_shelf(
-    matched_books_df,
-    query,
-    collection,
-    embedding_model,
-    recommendation_query_score_cutoff=None,
-    top_k=None,
-):
+    matched_books_df: pd.DataFrame | None,
+    query: str | list[str] | tuple[str, ...],
+    collection: Any,
+    embedding_model: Any,
+    recommendation_query_score_cutoff: float | None=None,
+    top_k: int | None=None,
+) -> pd.DataFrame | None:
     """
     Rank shelf books against a user query using cosine similarity.
 
