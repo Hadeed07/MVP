@@ -2,9 +2,15 @@ from fastapi import FastAPI
 from routers import scan
 from fastapi.middleware.cors import CORSMiddleware
 
+from database import init_database
+from routers import recommendation
+
 
 app = FastAPI()
+init_database()
+
 app.include_router(scan.router)
+app.include_router(recommendation.router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -13,7 +13,9 @@ import { useRouter } from "expo-router";
 
 import { pickImage, takePhoto } from "@/utils/imagePicker";
 import { useScanBookshelf } from "@/hooks/useScanBookshelf";
+import { useRecommendation } from "@/context/RecommendationContext";
 import { Colors, Radius, Shadows, Spacing, Typography } from "@/theme";
+
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -21,6 +23,7 @@ export default function ScanScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
 
   const { scan, loading } = useScanBookshelf();
+  const { recommendationQuery } = useRecommendation();
 
   const handlePickImage = async () => {
     const uri = await pickImage();
@@ -47,7 +50,7 @@ export default function ScanScreen() {
     try {
       console.log("1. Starting scan");
 
-      const result = await scan(imageUri);
+      const result = await scan(imageUri, recommendationQuery);
 
       console.log("2. Scan finished");
       console.log(result);
@@ -58,6 +61,7 @@ export default function ScanScreen() {
         pathname: "/results",
         params: {
           scanResult: JSON.stringify(result),
+          imageUri,
         },
       });
 

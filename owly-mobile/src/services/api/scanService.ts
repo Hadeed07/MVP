@@ -9,6 +9,7 @@ interface ScanOptions {
 
 export async function scanBookshelf(
   imageUri: string,
+  query: string,
   options?: ScanOptions
 ): Promise<ScanResponse> {
   const formData = new FormData();
@@ -19,9 +20,9 @@ export async function scanBookshelf(
     type: 'image/jpeg',
   } as any);
 
-  try {
-    console.log('📤 Uploading image...');
+  formData.append('query', query);
 
+  try {
     const response = await apiClient.post<ScanResponse>(
       API_ENDPOINTS.SCAN,
       formData,
@@ -33,23 +34,19 @@ export async function scanBookshelf(
       }
     );
 
-    console.log('✅ Response received');
-    console.log('Status:', response.status);
-    console.log('Data:', response.data);
-
-    if (!response.data || !Array.isArray(response.data.spines)) {
+    if (!response.data) {
       throw new Error('Malformed server response.');
     }
 
     return response.data;
   } catch (error) {
-    console.log('❌ FULL ERROR:', error);
-
     if (axios.isAxiosError(error)) {
-      console.log('Axios Code:', error.code);
-      console.log('Axios Message:', error.message);
-      console.log('Axios Status:', error.response?.status);
-      console.log('Axios Response:', error.response?.data);
+      console.error('Scan request failed:', {
+        code: error.code,
+        message: error.message,
+        status: error.response?.status,
+        response: error.response?.data,
+      });
 
       throw new Error(
         error.response?.data?.detail ??

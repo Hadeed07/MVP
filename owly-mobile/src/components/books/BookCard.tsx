@@ -1,11 +1,11 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SpineResult } from "@/services/api/types";
+import { RecommendedBook } from "@/services/api/types";
 import { Colors, Spacing, Typography, Radius, Shadows } from "@/theme";
 
 interface BookCardProps {
-  book: SpineResult;
+  book: RecommendedBook;
 }
 
 export default function BookCard({ book }: BookCardProps) {
@@ -13,7 +13,7 @@ export default function BookCard({ book }: BookCardProps) {
     <View style={styles.container}>
       <Text style={styles.title}>Spine #{book.id}</Text>
 
-      <Text style={styles.ocr}>{book.text}</Text>
+      <Text style={styles.ocr}>{book.title}</Text>
 
       <View style={styles.footer}>
         <Text style={styles.cornerCount}>{book.corners.length} corners</Text>

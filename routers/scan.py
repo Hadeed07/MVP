@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, HTTPException, Response
+from fastapi import APIRouter, UploadFile, HTTPException, Response, Form
 import numpy as np
 import cv2
 import os
@@ -24,13 +24,14 @@ pl = SpinePipeline(
 
 
 @router.post("/scan", response_model=ScanResponse)
-def scan(file: UploadFile, query: str | None = None):
+def scan(file: UploadFile, query: str | None = Form(None)):
     """
     Upload a bookshelf image and return detected book spines
     together with a scan ID for later image retrieval.
     """
 
     print("A - Endpoint entered")
+    print("Query:", query)
     try:
         try:
             contents = file.file.read()

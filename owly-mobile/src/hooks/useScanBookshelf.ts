@@ -7,7 +7,7 @@ interface UseScanBookshelfResult {
   scanResult: ScanResponse | null;
   loading: boolean;
   error: string | null;
-  scan: (imageUri: string) => Promise<ScanResponse>;
+  scan: (imageUri: string, query: string) => Promise<ScanResponse>;
   cancel: () => void;
   reset: () => void;
 }
@@ -31,38 +31,41 @@ export function useScanBookshelf(): UseScanBookshelfResult {
     setLoading(false);
   }, []);
 
-  const scan = useCallback(async (imageUri: string) => {
-    cancel();
+  const scan = useCallback(
+    async (imageUri: string, query: string) => {
+      cancel();
 
-    const controller = new AbortController();
-    controllerRef.current = controller;
+      const controller = new AbortController();
+      controllerRef.current = controller;
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    try {
-      const result = await scanBookshelf(imageUri, {
-        signal: controller.signal,
-      });
+      try {
+        const result = await scanBookshelf(imageUri, query, {
+          signal: controller.signal,
+        });
 
-      setScanResult(result);
+        setScanResult(result);
 
-      return result;
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Unexpected error occurred.';
+        return result;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Unexpected error occurred.';
 
-      if (!controller.signal.aborted) {
-        setError(message);
+        if (!controller.signal.aborted) {
+          setError(message);
+        }
+
+        throw err;
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
-
-      throw err;
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
-    }
-  }, [cancel]);
+    },
+    [cancel],
+  );
 
   useEffect(() => {
     return () => {

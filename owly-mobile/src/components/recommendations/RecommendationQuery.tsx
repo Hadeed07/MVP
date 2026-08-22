@@ -92,7 +92,7 @@ export default function RecommendationQuery({
 }: RecommendationQueryProps) {
   const [customQuery, setCustomQuery] = useState(initialQuery);
 
-  const [selectedMoods, setSelectedMoods] = useState<Mood[]>([]);
+  const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
 
   const [selectedExperience, setSelectedExperience] =
     useState<Experience | null>(null);
@@ -101,14 +101,8 @@ export default function RecommendationQuery({
     setCustomQuery(initialQuery);
   }, [initialQuery]);
 
-  const toggleMood = (mood: Mood) => {
-    setSelectedMoods((current) => {
-      if (current.includes(mood)) {
-        return current.filter((item) => item !== mood);
-      }
-
-      return [...current, mood];
-    });
+  const selectMood = (mood: Mood) => {
+    setSelectedMood((current) => (current === mood ? null : mood));
   };
 
   const selectExperience = (experience: Experience) => {
@@ -126,11 +120,11 @@ export default function RecommendationQuery({
       parts.push(text);
     }
 
-    if (selectedMoods.length > 0) {
+    if (selectedMood) {
       parts.push(
-        `I want something that makes me ${selectedMoods
-          .map((mood) => mood.toLowerCase().replace("make me ", ""))
-          .join(", ")}.`,
+        `I want something that makes me ${selectedMood
+          .toLowerCase()
+          .replace("make me ", "")}.`,
       );
     }
 
@@ -141,12 +135,9 @@ export default function RecommendationQuery({
     }
 
     return parts.join(" ");
-  }, [customQuery, selectedMoods, selectedExperience]);
+  }, [customQuery, selectedMood, selectedExperience]);
 
-  const canSave =
-    customQuery.trim().length > 0 ||
-    selectedMoods.length > 0 ||
-    selectedExperience !== null;
+  const canSave = customQuery.trim().length > 0;
 
   return (
     <KeyboardAvoidingView
@@ -212,17 +203,17 @@ export default function RecommendationQuery({
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>How should it feel?</Text>
 
-            <Text style={styles.sectionHint}>Pick one or more</Text>
+            <Text style={styles.sectionHint}>Pick one</Text>
           </View>
 
           <View style={styles.options}>
             {MOODS.map((mood) => {
-              const selected = selectedMoods.includes(mood);
+              const selected = selectedMood === mood;
 
               return (
                 <Pressable
                   key={mood}
-                  onPress={() => toggleMood(mood)}
+                  onPress={() => selectMood(mood)}
                   style={({ pressed }) => [
                     styles.option,
                     selected && styles.optionSelected,
@@ -312,11 +303,6 @@ export default function RecommendationQuery({
           />
         </Pressable>
 
-        {/* ───────────────── SKIP ───────────────── */}
-
-        <Pressable onPress={() => onSubmit("")} style={styles.skipButton}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -378,7 +364,7 @@ const styles = StyleSheet.create({
   /* ───────── QUERY BOX ───────── */
 
   queryBox: {
-    minHeight: 150,
+    minHeight: 100,
     borderRadius: Radius.xl,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -390,10 +376,10 @@ const styles = StyleSheet.create({
 
   queryInput: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 72,
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.md,
 
     fontSize: 13,
     lineHeight: 19,

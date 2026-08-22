@@ -7,7 +7,14 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { apiClient } from "@/services/api/client";
+import { API_ENDPOINTS } from "@/services/api/endpoints";
+
 const STORAGE_KEY = "@owly/recommendation_query";
+
+interface RecommendationQueryResponse {
+  query: string;
+}
 
 interface RecommendationContextValue {
   recommendationQuery: string;
@@ -31,13 +38,35 @@ export function RecommendationProvider({
   useEffect(() => {
     const loadQuery = async () => {
       try {
-        const storedQuery = await AsyncStorage.getItem(STORAGE_KEY);
+        const response = await apiClient.get<RecommendationQueryResponse>(
+          API_ENDPOINTS.RECOMMENDATION_QUERY,
+        );
 
-        if (storedQuery) {
-          setRecommendationQueryState(storedQuery);
+        const query = response.data.query?.trim() ?? "";
+
+        if (query) {
+          setRecommendationQueryState(query);
+          await AsyncStorage.setItem(STORAGE_KEY, query);
         }
       } catch (error) {
-        console.error("Failed to load recommendation query:", error);
+        console.error(
+          "Failed to load recommendation query from backend:",
+          error,
+        );
+
+        // Fallback to locally cached query
+        try {
+          const storedQuery = await AsyncStorage.getItem(STORAGE_KEY);
+
+          if (storedQuery) {
+            setRecommendationQueryState(storedQuery);
+          }
+        } catch (storageError) {
+          console.error(
+            "Failed to load cached recommendation query:",
+            storageError,
+          );
+        }
       }
     };
 
@@ -47,15 +76,17 @@ export function RecommendationProvider({
   const setRecommendationQuery = async (query: string) => {
     const trimmedQuery = query.trim();
 
-    try {
-      if (!trimmedQuery) {
-        await AsyncStorage.removeItem(STORAGE_KEY);
-        setRecommendationQueryState("");
-        return;
-      }
+    if (!trimmedQuery) {
+      throw new Error("Recommendation query cannot be empty.");
+    }
 
-      await AsyncStorage.setItem(STORAGE_KEY, trimmedQuery);
+    try {
+      await apiClient.put(API_ENDPOINTS.RECOMMENDATION_QUERY, {
+        query: trimmedQuery,
+      });
+
       setRecommendationQueryState(trimmedQuery);
+      await AsyncStorage.setItem(STORAGE_KEY, trimmedQuery);
     } catch (error) {
       console.error("Failed to save recommendation query:", error);
       throw error;
@@ -63,13 +94,8 @@ export function RecommendationProvider({
   };
 
   const clearRecommendationQuery = async () => {
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
-      setRecommendationQueryState("");
-    } catch (error) {
-      console.error("Failed to clear recommendation query:", error);
-      throw error;
-    }
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    setRecommendationQueryState("");
   };
 
   return (

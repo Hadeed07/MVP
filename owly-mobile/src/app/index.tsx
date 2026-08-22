@@ -41,6 +41,11 @@ export default function HomeScreen() {
   const [queryModalVisible, setQueryModalVisible] = useState(false);
 
   const openScan = (source: ScanSource) => {
+    if (!recommendationQuery.trim()) {
+      setQueryModalVisible(true);
+      return;
+    }
+
     router.push({
       pathname: "/scan",
       params: { source },
