@@ -20,7 +20,7 @@ __pycache__/
 # Node Modules
 node_modules
 
-chroma_db/
+
 Recommender/chroma_db/
 *.sqlite3
 *.bin
