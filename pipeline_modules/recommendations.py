@@ -246,11 +246,11 @@ def recommend_from_shelf(
         kind="stable",
     ).reset_index(drop=True)
 
-    if recommendation_query_score_cutoff is not None:
-        ranked_df = ranked_df[
-            ranked_df["Query Score"]
-            >= recommendation_query_score_cutoff
-        ].reset_index(drop=True)
+    # if recommendation_query_score_cutoff is not None:
+    #     ranked_df = ranked_df[
+    #         ranked_df["Query Score"]
+    #         >= recommendation_query_score_cutoff
+    #     ].reset_index(drop=True)
 
     ranked_df["Query Rank"] = (
         ranked_df.index + 1
