@@ -37,8 +37,8 @@ class SpinePipeline:
 
     def __init__(
         self,
-        catalog_path=r"..\MVP\Dataset\Books.csv",
-        chroma_path=r"..\MVP\chroma_db",
+        catalog_path="../Dataset/Books.csv",
+        chroma_path="../chroma_db",
         collection_name="books",
         google_books_api_key=None,
         score_threshold=OCR_RESULT_SCORE_THRESHOLD,
